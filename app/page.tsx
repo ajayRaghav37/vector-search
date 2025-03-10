@@ -1,101 +1,195 @@
-import Image from "next/image";
+import './App.css';
+import React, { useState } from "react";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const dummyMovie = {
+    title: "No movie to show",
+    plot: "",
+    poster: "https://as1.ftcdn.net/v2/jpg/03/95/42/94/1000_F_395429472_LNyOoV7eRXm76HIIBBHOciyHEtiwS1Ed.jpg",
+    imdb: { rating: 0 },
+    languages: ["N/A"],
+    countries: ["N/A"],
+    score: 0
+  };
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const [movies, setMovies] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [selectedOption, setSelectedOption] = useState("Vector");
+  const [showOptions, setShowOptions] = useState(false);
+  const [showCode, setShowCode] = useState(true);
+  const [code, setCode] = useState("");
+
+  const handleChange = (e) => {
+    setSearchQuery(e.target.value);
+    setShowCode(false);
+  };
+
+  const handleKeyChange = (e) => {
+    setApiKey(e.target.value);
+  };
+
+  const handleOptionChange = (option) => {
+    setSelectedOption(option);
+    setShowOptions(false);
+    setShowCode(false);
+  };
+
+  const handleDropdownToggle = (e) => {
+    e.preventDefault();
+    setShowOptions((prevShow) => !prevShow);
+  };
+
+  const updateCode = (e) => {
+    e.preventDefault();
+    if (showCode) {
+      setShowCode(false);
+      return;
+    }
+
+    let currCode;
+
+    if (selectedOption === 'Vector') {
+      currCode = `
+  // getEmbeddings function can leverage any embedding model from OpenAI, etc.
+
+  {
+    "$vectorSearch": {
+      "index": "default",
+      "path": "plot_embedding",
+      "queryVector": getEmbeddings("${searchQuery}"),
+      "numCandidates": 100,
+      "limit": 5
+    }
+  }`;
+    }
+    else {
+      currCode = `
+  {
+    "$search": {
+      "index": "default",
+      "text": {
+        "query": "${searchQuery}",
+        "path": "plot"
+      }
+    }
+  }`;
+    }
+
+    setCode(currCode);
+    setShowCode(true);
+  }
+
+  const handleSubmit = (e) => {
+    setMovies([]);
+    e.preventDefault();
+    fetchMovies();
+  };
+
+  const fetchMovies = async () => {
+    try {
+      const response = await fetch(
+        `https://ap-south-1.aws.data.mongodb-api.com/app/triggers-jxjsd/endpoint/findMovie?m=${selectedOption}&key=${apiKey}&s=${encodeURIComponent(searchQuery)}`
+      );
+
+      const similarMovies = (await response.json()).results;
+
+      if (Array.isArray(similarMovies)) {
+        if (similarMovies.length > 0) {
+          setMovies(similarMovies);
+        }
+        else {
+          dummyMovie.plot = 'Try again with a different search query';
+          setMovies([dummyMovie]);
+        }
+      }
+      else {
+        dummyMovie.plot = 'This could be due to exceeded rate limit. Please try again after some time.';
+        setMovies([dummyMovie]);
+      }
+    } catch (error) {
+      console.error("Error fetching movies:", error);
+    }
+  };
+
+  return (
+    <div>
+      {movies.length === 0 && <img className='bg-image' src={"logo_large.png"} />}
+      <div className='powered'>
+        <div className='flexDiv'></div>
+        <img height={24} src="/mongo.png"></img>
+        <a className='powered-text' href="https://www.mongodb.com/products/platform/atlas-vector-search"><em>Powered by MongoDB Atlas Vector Search</em></a>
+        <div className='flexDiv'></div>
+      </div>
+      <h1 className='subject'>What's that movie where...</h1>
+      <form onSubmit={handleSubmit}>
+        <input
+          type="text"
+          autoFocus
+          value={searchQuery}
+          onChange={handleChange}
+          placeholder="Enter plot here..."
+        />
+        <div className="dropdown">
+          <button className="dropdown-button submit-button" disabled={searchQuery.trim() === '' || (selectedOption === "Vector" && apiKey.trim() === '')} type="submit">
+            {selectedOption === "Standard" ? "Standard Search" : "Vector Search"}
+          </button>
+          <button className="dropdown-button arrow" onClick={handleDropdownToggle}>▼</button>
+          <button className="dropdown-button code-button" onClick={updateCode}>{showCode ? `{-}` : `{+}`}</button>
+          {showOptions && (
+            <div className="dropdown-content">
+              <button onClick={() => handleOptionChange("Standard")}>Standard Search</button>
+              <button onClick={() => handleOptionChange("Vector")}>Vector Search</button>
+            </div>
+          )}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </form>
+      {
+        showCode &&
+        <div className='container code-box'>
+          <div className='flexDiv'></div>
+          {
+            (new URLSearchParams(window.location.search)).get('dev') &&
+            <iframe className='chart' width="480" height="360" src="https://charts.mongodb.com/charts-ajayraghav-qlztg/embed/charts?id=64bbc28b-48a7-459b-8129-70f16c33e921&maxDataAge=300&theme=dark&autoRefresh=true"></iframe>
+          }
+          <div className='code'>
+            <div className='container'>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={handleKeyChange}
+                placeholder="Enter your own OpenAI API Key"
+              />
+            </div>
+            <div>
+              <div className='open-ai-link'>
+                <a target='_blank' href="https://openai.com/pricing#:~:text=Start%20for%20free">Sign up with email and add unique phone number to get free $5 credits on OpenAI</a>
+              </div>
+            </div>
+            <pre>
+              <code>{code}</code>
+            </pre>
+          </div>
+          <div className='flexDiv'></div>
+        </div>
+      }
+      <div className="movies">
+        {movies.map((movie) => (
+          <div key={movie._id} className="movie">
+            <div className='rating'>
+              <h2 className='title'>{movie.title}</h2>
+              <p>{(movie.imdb || { rating: 0 }).rating || "N/A"}</p>
+            </div>
+            <h4 className='year'>{movie.year || 'N/A'} | {(movie.countries || ["N/A"])[0]} | {(movie.languages || ["N/A"])[0]}</h4>
+            <h5><em>Search score: {movie.score}</em></h5>
+            <p className='plot'>{movie.fullplot || movie.plot}</p>
+            <img src={movie.poster || "https://as1.ftcdn.net/v2/jpg/03/95/42/94/1000_F_395429472_LNyOoV7eRXm76HIIBBHOciyHEtiwS1Ed.jpg"} alt={`${movie.title} Poster`} onError={({ currentTarget }) => {
+              currentTarget.onerror = null; // prevents looping
+              currentTarget.src = "https://as1.ftcdn.net/v2/jpg/03/95/42/94/1000_F_395429472_LNyOoV7eRXm76HIIBBHOciyHEtiwS1Ed.jpg";
+            }} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
